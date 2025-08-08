@@ -60,7 +60,7 @@ class BitcoinTradingBot:
             await self.data_collector.initialize()
             logger.info("✅ Data collector sẵn sàng")
             
-            # Test notification system
+            # Send startup notification
             self.notifications.send_info("Bitcoin AI Trading Bot đã khởi động!")
             logger.info("✅ Notification system hoạt động")
             

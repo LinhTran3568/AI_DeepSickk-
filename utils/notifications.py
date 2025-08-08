@@ -135,29 +135,3 @@ class NotificationManager:
         """Gửi Telegram notification (TODO: implement)"""
         # TODO: Implement Telegram notifications
         logger.info(f"TELEGRAM notification: {message}")
-    
-    def test_notifications(self):
-        """Test hệ thống thông báo"""
-        self.send_info("Test notification system - Info")
-        self.send_warning("Test notification system - Warning")
-        self.send_error("Test notification system - Error")
-        
-        # Test trade alert
-        test_trade = {
-            'symbol': 'BTC/USDT',
-            'side': 'buy',
-            'amount': 0.001,
-            'price': 45000
-        }
-        self.send_trade_alert(test_trade)
-        
-        # Test signal alert
-        test_signal = {
-            'action': 'BUY',
-            'confidence': 0.85,
-            'entry_price': 45000,
-            'stop_loss': 44100,
-            'take_profit': 46800,
-            'reason': 'AI prediction + RSI oversold'
-        }
-        self.send_signal_alert(test_signal)

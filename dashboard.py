@@ -73,15 +73,23 @@ def get_status():
 def get_market_data():
     """API endpoint cho market data"""
     try:
-        # In a real implementation, this would be async
-        # For demo, return mock data
-        market_data = {
-            'price': 45000,
-            'change_24h': 2.5,
-            'volume': 1500000000,
-            'timestamp': datetime.now().isoformat()
-        }
-        return jsonify(market_data)
+        # Get real market data from collector
+        from data.collector import DataCollector
+        collector = DataCollector()
+        
+        # This should be async in real implementation
+        import asyncio
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        market_data = loop.run_until_complete(collector.get_market_data('BTCUSDT'))
+        loop.close()
+        
+        return jsonify({
+            'price': market_data.get('price', 0),
+            'change_24h': market_data.get('price_change_percent_24h', 0),
+            'volume': market_data.get('volume', 0),
+            'timestamp': market_data.get('timestamp', datetime.now().isoformat())
+        })
     except Exception as e:
         logger.error(f"Error getting market data: {e}")
         return jsonify({'error': str(e)}), 500
@@ -90,16 +98,22 @@ def get_market_data():
 def get_chart_data():
     """API endpoint cho chart data"""
     try:
-        # Mock chart data - in real app, fetch from data collector
+        # Get real chart data from collector
+        from data.collector import DataCollector
+        collector = DataCollector()
+        
+        import asyncio
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        klines = loop.run_until_complete(collector.get_kline_data('BTCUSDT', '1h', 100))
+        loop.close()
+        
         timestamps = []
         prices = []
-        base_price = 45000
         
-        for i in range(100):
-            timestamp = datetime.now() - timedelta(hours=100-i)
-            price = base_price + (i * 10) + ((-1)**i * 200)  # Mock price movement
-            timestamps.append(timestamp.isoformat())
-            prices.append(price)
+        for kline in klines:
+            timestamps.append(datetime.fromtimestamp(kline['timestamp']/1000).isoformat())
+            prices.append(kline['close'])
         
         chart_data = {
             'timestamps': timestamps,
@@ -280,11 +294,21 @@ def background_updates():
     while True:
         try:
             if bot_state['running']:
+                # Get real market data
+                from data.collector import DataCollector
+                collector = DataCollector()
+                
+                import asyncio
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                market_data = loop.run_until_complete(collector.get_market_data('BTCUSDT'))
+                loop.close()
+                
                 # Update market data
                 socketio.emit('market_update', {
-                    'price': 45000 + (datetime.now().second * 10),  # Mock price
-                    'volume': 1500000000,
-                    'timestamp': datetime.now().isoformat()
+                    'price': market_data.get('price', 0),
+                    'volume': market_data.get('volume', 0),
+                    'timestamp': market_data.get('timestamp', datetime.now().isoformat())
                 })
                 
                 # Update performance

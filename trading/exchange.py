@@ -61,8 +61,11 @@ class ExchangeManager:
             symbol = symbol or self.settings.TRADING_PAIR
             
             if self.is_demo:
-                # Simulate Bitcoin price (you can connect to a free API here)
-                return 45000.0  # Demo price
+                # Get real price even in demo mode for accuracy
+                from data.collector import DataCollector
+                collector = DataCollector()
+                real_price = await collector.get_current_price(symbol)
+                return real_price
             
             ticker = await self.exchange.fetch_ticker(symbol)
             return ticker['last']

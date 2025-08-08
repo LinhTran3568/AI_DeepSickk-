@@ -134,7 +134,6 @@ SIMPLE_DASHBOARD = '''
             <br>
             <button class="btn btn-success" onclick="startBot()">Start Bot</button>
             <button class="btn btn-danger" onclick="stopBot()">Stop Bot</button>
-            <button class="btn btn-info" onclick="testAI()">Test AI</button>
         </div>
 
         <!-- Price Card -->
@@ -269,11 +268,6 @@ SIMPLE_DASHBOARD = '''
             addLog('Stopping bot...');
         }
 
-        function testAI() {
-            socket.emit('test_ai');
-            addLog('Testing AI connection...');
-        }
-
         function updateStatus() {
             // Send initial status update
             socket.emit('get_status');
@@ -282,7 +276,7 @@ SIMPLE_DASHBOARD = '''
         // Initialize on page load
         window.onload = function() {
             addLog('Dashboard initialized');
-            testAI(); // Test AI on load
+            updateStatus(); // Get initial status
             
             // Simulate some live data
             setTimeout(() => {
@@ -337,13 +331,6 @@ def handle_stop_bot():
     bot_state['running'] = False
     emit('bot_status', {'running': False})
     print("Bot stopped")
-
-@socketio.on('test_ai')
-def handle_test_ai():
-    # Simulate AI test
-    bot_state['ai_connected'] = True
-    emit('ai_status', {'connected': True})
-    print("AI test completed")
 
 @socketio.on('get_status')
 def handle_get_status():
