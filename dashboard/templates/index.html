@@ -1,0 +1,504 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bitcoin AI Trading Bot Dashboard</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+    <script src="https://cdn.socket.io/4.5.0/socket.io.min.js"></script>
+    <style>
+        :root {
+            --bg-primary: #1a1a1a;
+            --bg-secondary: #2d2d2d;
+            --bg-card: #3a3a3a;
+            --text-primary: #ffffff;
+            --text-secondary: #cccccc;
+            --accent-green: #00ff88;
+            --accent-red: #ff4444;
+            --accent-orange: #f7931a;
+        }
+        
+        body {
+            background-color: var(--bg-primary);
+            color: var(--text-primary);
+            font-family: 'Roboto', sans-serif;
+        }
+        
+        .card {
+            background-color: var(--bg-card);
+            border: 1px solid #555;
+            border-radius: 10px;
+            margin-bottom: 20px;
+        }
+        
+        .card-header {
+            background-color: var(--bg-secondary);
+            border-bottom: 1px solid #555;
+            border-radius: 10px 10px 0 0 !important;
+        }
+        
+        .navbar {
+            background-color: var(--bg-secondary) !important;
+            border-bottom: 2px solid var(--accent-orange);
+        }
+        
+        .navbar-brand {
+            color: var(--accent-orange) !important;
+            font-weight: bold;
+        }
+        
+        .btn-success {
+            background-color: var(--accent-green);
+            border-color: var(--accent-green);
+        }
+        
+        .btn-danger {
+            background-color: var(--accent-red);
+            border-color: var(--accent-red);
+        }
+        
+        .text-success { color: var(--accent-green) !important; }
+        .text-danger { color: var(--accent-red) !important; }
+        .text-warning { color: var(--accent-orange) !important; }
+        
+        .status-indicator {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 8px;
+        }
+        
+        .status-running { background-color: var(--accent-green); }
+        .status-stopped { background-color: var(--accent-red); }
+        
+        .metric-card {
+            background: linear-gradient(135deg, var(--bg-card) 0%, var(--bg-secondary) 100%);
+            border-radius: 10px;
+            padding: 20px;
+            text-align: center;
+            height: 120px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+        
+        .metric-value {
+            font-size: 2rem;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+        
+        .metric-label {
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+        }
+        
+        .trade-log {
+            max-height: 300px;
+            overflow-y: auto;
+            background-color: var(--bg-primary);
+            border-radius: 5px;
+            padding: 10px;
+        }
+        
+        .trade-item {
+            padding: 8px;
+            border-left: 3px solid;
+            margin-bottom: 8px;
+            background-color: var(--bg-card);
+            border-radius: 0 5px 5px 0;
+        }
+        
+        .trade-buy { border-left-color: var(--accent-green); }
+        .trade-sell { border-left-color: var(--accent-red); }
+        
+        #price-chart {
+            height: 400px;
+            background-color: var(--bg-card);
+            border-radius: 10px;
+        }
+        
+        .control-panel {
+            background: linear-gradient(135deg, var(--bg-secondary) 0%, var(--bg-card) 100%);
+            border-radius: 10px;
+            padding: 20px;
+        }
+        
+        .signal-indicator {
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 10px;
+        }
+        
+        .signal-buy {
+            background-color: rgba(0, 255, 136, 0.1);
+            border-left: 4px solid var(--accent-green);
+        }
+        
+        .signal-sell {
+            background-color: rgba(255, 68, 68, 0.1);
+            border-left: 4px solid var(--accent-red);
+        }
+        
+        .signal-hold {
+            background-color: rgba(255, 193, 7, 0.1);
+            border-left: 4px solid #ffc107;
+        }
+        
+        @media (max-width: 768px) {
+            .metric-card {
+                height: auto;
+                margin-bottom: 15px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="navbar navbar-expand-lg navbar-dark">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="#">
+                <i class="fab fa-bitcoin"></i> Bitcoin AI Trading Bot
+            </a>
+            <div class="navbar-nav ms-auto">
+                <span class="navbar-text">
+                    <span id="bot-status-indicator" class="status-indicator status-stopped"></span>
+                    Status: <span id="bot-status-text">Stopped</span>
+                </span>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container-fluid mt-4">
+        <!-- Control Panel -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="control-panel">
+                    <h5><i class="fas fa-cogs"></i> Bot Controls</h5>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <button id="start-bot-btn" class="btn btn-success me-2">
+                                <i class="fas fa-play"></i> Start Bot
+                            </button>
+                            <button id="stop-bot-btn" class="btn btn-danger me-2">
+                                <i class="fas fa-stop"></i> Stop Bot
+                            </button>
+                            <button id="refresh-btn" class="btn btn-outline-light">
+                                <i class="fas fa-refresh"></i> Refresh
+                            </button>
+                        </div>
+                        <div class="col-md-6 text-end">
+                            <small class="text-muted">
+                                Last Updated: <span id="last-update">--</span>
+                            </small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Metrics Row -->
+        <div class="row mb-4">
+            <div class="col-md-2 col-sm-6">
+                <div class="metric-card">
+                    <div class="metric-value text-warning" id="btc-price">$45,000</div>
+                    <div class="metric-label">BTC Price</div>
+                </div>
+            </div>
+            <div class="col-md-2 col-sm-6">
+                <div class="metric-card">
+                    <div class="metric-value text-info" id="balance-usdt">$10,000</div>
+                    <div class="metric-label">USDT Balance</div>
+                </div>
+            </div>
+            <div class="col-md-2 col-sm-6">
+                <div class="metric-card">
+                    <div class="metric-value text-info" id="balance-btc">0.0000</div>
+                    <div class="metric-label">BTC Balance</div>
+                </div>
+            </div>
+            <div class="col-md-2 col-sm-6">
+                <div class="metric-card">
+                    <div class="metric-value" id="total-pnl">$0.00</div>
+                    <div class="metric-label">Total P&L</div>
+                </div>
+            </div>
+            <div class="col-md-2 col-sm-6">
+                <div class="metric-card">
+                    <div class="metric-value text-light" id="total-trades">0</div>
+                    <div class="metric-label">Total Trades</div>
+                </div>
+            </div>
+            <div class="col-md-2 col-sm-6">
+                <div class="metric-card">
+                    <div class="metric-value text-light" id="win-rate">0%</div>
+                    <div class="metric-label">Win Rate</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Main Content -->
+        <div class="row">
+            <!-- Price Chart -->
+            <div class="col-lg-8">
+                <div class="card">
+                    <div class="card-header">
+                        <h5><i class="fas fa-chart-line"></i> Bitcoin Price Chart</h5>
+                    </div>
+                    <div class="card-body">
+                        <div id="price-chart"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Signals & Controls -->
+            <div class="col-lg-4">
+                <!-- Latest Signal -->
+                <div class="card">
+                    <div class="card-header">
+                        <h5><i class="fas fa-signal"></i> Latest Signal</h5>
+                    </div>
+                    <div class="card-body">
+                        <div id="latest-signal" class="signal-indicator signal-hold">
+                            <div class="d-flex justify-content-between">
+                                <strong>HOLD</strong>
+                                <span class="badge bg-warning">50%</span>
+                            </div>
+                            <small class="text-muted">Waiting for clearer signals...</small>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Positions -->
+                <div class="card">
+                    <div class="card-header">
+                        <h5><i class="fas fa-wallet"></i> Open Positions</h5>
+                    </div>
+                    <div class="card-body">
+                        <div id="positions-list">
+                            <p class="text-muted">No open positions</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Recent Trades -->
+                <div class="card">
+                    <div class="card-header">
+                        <h5><i class="fas fa-history"></i> Recent Trades</h5>
+                    </div>
+                    <div class="card-body">
+                        <div id="trades-list" class="trade-log">
+                            <p class="text-muted">No trades yet</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Socket.IO connection
+        const socket = io();
+        
+        // Bot control functions
+        function startBot() {
+            fetch('/api/bot/start', { method: 'POST' })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        updateBotStatus('running');
+                        showAlert('Bot started successfully!', 'success');
+                    } else {
+                        showAlert('Failed to start bot: ' + data.error, 'danger');
+                    }
+                })
+                .catch(error => {
+                    showAlert('Error: ' + error.message, 'danger');
+                });
+        }
+        
+        function stopBot() {
+            fetch('/api/bot/stop', { method: 'POST' })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        updateBotStatus('stopped');
+                        showAlert('Bot stopped successfully!', 'warning');
+                    } else {
+                        showAlert('Failed to stop bot: ' + data.error, 'danger');
+                    }
+                })
+                .catch(error => {
+                    showAlert('Error: ' + error.message, 'danger');
+                });
+        }
+        
+        function updateBotStatus(status) {
+            const indicator = document.getElementById('bot-status-indicator');
+            const text = document.getElementById('bot-status-text');
+            
+            if (status === 'running') {
+                indicator.className = 'status-indicator status-running';
+                text.textContent = 'Running';
+            } else {
+                indicator.className = 'status-indicator status-stopped';
+                text.textContent = 'Stopped';
+            }
+        }
+        
+        function showAlert(message, type) {
+            // Simple alert for now - in production, use toast notifications
+            alert(message);
+        }
+        
+        function updateMetrics(data) {
+            if (data.price) {
+                document.getElementById('btc-price').textContent = '$' + data.price.toLocaleString();
+            }
+            
+            if (data.balance) {
+                document.getElementById('balance-usdt').textContent = '$' + data.balance.USDT.toLocaleString();
+                document.getElementById('balance-btc').textContent = data.balance.BTC.toFixed(6);
+            }
+            
+            if (data.performance) {
+                const pnl = data.performance.total_pnl || 0;
+                const pnlElement = document.getElementById('total-pnl');
+                pnlElement.textContent = '$' + pnl.toFixed(2);
+                pnlElement.className = 'metric-value ' + (pnl >= 0 ? 'text-success' : 'text-danger');
+                
+                document.getElementById('total-trades').textContent = data.performance.total_trades || 0;
+                document.getElementById('win-rate').textContent = Math.round(data.performance.win_rate * 100) + '%';
+            }
+        }
+        
+        function loadChart() {
+            fetch('/api/chart-data')
+                .then(response => response.json())
+                .then(data => {
+                    const trace = {
+                        x: data.timestamps,
+                        y: data.prices,
+                        type: 'scatter',
+                        mode: 'lines',
+                        name: 'BTC Price',
+                        line: { color: '#f7931a', width: 2 }
+                    };
+                    
+                    const layout = {
+                        title: '',
+                        xaxis: { title: 'Time' },
+                        yaxis: { title: 'Price (USDT)' },
+                        paper_bgcolor: 'rgba(0,0,0,0)',
+                        plot_bgcolor: 'rgba(0,0,0,0)',
+                        font: { color: '#ffffff' },
+                        margin: { l: 50, r: 50, t: 20, b: 50 }
+                    };
+                    
+                    Plotly.newPlot('price-chart', [trace], layout, {responsive: true});
+                })
+                .catch(error => console.error('Error loading chart:', error));
+        }
+        
+        function loadRecentTrades() {
+            fetch('/api/trades')
+                .then(response => response.json())
+                .then(trades => {
+                    const tradesList = document.getElementById('trades-list');
+                    if (trades.length === 0) {
+                        tradesList.innerHTML = '<p class="text-muted">No trades yet</p>';
+                        return;
+                    }
+                    
+                    tradesList.innerHTML = trades.map(trade => `
+                        <div class="trade-item trade-${trade.side.toLowerCase()}">
+                            <div class="d-flex justify-content-between">
+                                <strong>${trade.side}</strong>
+                                <span class="${trade.pnl >= 0 ? 'text-success' : 'text-danger'}">
+                                    ${trade.pnl >= 0 ? '+' : ''}$${trade.pnl.toFixed(2)}
+                                </span>
+                            </div>
+                            <small>${trade.amount} BTC @ $${trade.price.toLocaleString()}</small><br>
+                            <small class="text-muted">${new Date(trade.timestamp).toLocaleTimeString()}</small>
+                        </div>
+                    `).join('');
+                })
+                .catch(error => console.error('Error loading trades:', error));
+        }
+        
+        function loadLatestSignal() {
+            fetch('/api/signals')
+                .then(response => response.json())
+                .then(signals => {
+                    if (signals.length === 0) return;
+                    
+                    const signal = signals[0];
+                    const signalElement = document.getElementById('latest-signal');
+                    
+                    let signalClass = 'signal-hold';
+                    if (signal.action === 'BUY') signalClass = 'signal-buy';
+                    else if (signal.action === 'SELL') signalClass = 'signal-sell';
+                    
+                    let badgeClass = 'bg-warning';
+                    if (signal.confidence > 0.7) badgeClass = 'bg-success';
+                    else if (signal.confidence < 0.5) badgeClass = 'bg-danger';
+                    
+                    signalElement.className = `signal-indicator ${signalClass}`;
+                    signalElement.innerHTML = `
+                        <div class="d-flex justify-content-between">
+                            <strong>${signal.action}</strong>
+                            <span class="badge ${badgeClass}">${Math.round(signal.confidence * 100)}%</span>
+                        </div>
+                        <small class="text-muted">${signal.reason}</small>
+                    `;
+                })
+                .catch(error => console.error('Error loading signals:', error));
+        }
+        
+        function refreshData() {
+            fetch('/api/status')
+                .then(response => response.json())
+                .then(data => {
+                    updateBotStatus(data.status);
+                    updateMetrics(data);
+                    document.getElementById('last-update').textContent = new Date().toLocaleTimeString();
+                });
+            
+            loadChart();
+            loadRecentTrades();
+            loadLatestSignal();
+        }
+        
+        // Socket.IO event handlers
+        socket.on('bot_status_update', (data) => {
+            updateBotStatus(data.status);
+        });
+        
+        socket.on('market_update', (data) => {
+            updateMetrics(data);
+        });
+        
+        socket.on('performance_update', (data) => {
+            updateMetrics({ performance: data });
+        });
+        
+        // Event listeners
+        document.getElementById('start-bot-btn').addEventListener('click', startBot);
+        document.getElementById('stop-bot-btn').addEventListener('click', stopBot);
+        document.getElementById('refresh-btn').addEventListener('click', refreshData);
+        
+        // Initialize dashboard
+        document.addEventListener('DOMContentLoaded', function() {
+            refreshData();
+            
+            // Auto-refresh every 30 seconds
+            setInterval(refreshData, 30000);
+        });
+    </script>
+</body>
+</html>
