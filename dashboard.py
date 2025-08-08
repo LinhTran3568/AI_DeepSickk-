@@ -21,7 +21,7 @@ import plotly.utils
 from config.settings import Settings
 from trading.exchange import ExchangeManager
 from data.collector import DataCollector
-from ai_engine.deepseek_client import DeepSeekClient
+from ai_engine.puter_client import PuterAIClient
 from utils.logger import setup_logger
 
 logger = setup_logger(__name__)
@@ -35,7 +35,7 @@ socketio = SocketIO(app, cors_allowed_origins="*", async_mode='threading')
 settings = Settings()
 exchange_manager = ExchangeManager()
 data_collector = DataCollector()
-deepseek_client = DeepSeekClient()
+puter_client = PuterAIClient()
 
 # Bot state
 bot_state = {

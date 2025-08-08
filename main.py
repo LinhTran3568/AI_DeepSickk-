@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Bitcoin AI Trading Bot - Main Entry Point
-Hệ thống AI trading bot cho Bitcoin với DeepSeek API
+Hệ thống AI trading bot cho Bitcoin với Puter AI (miễn phí)
 """
 
 import asyncio
@@ -15,7 +15,7 @@ sys.path.insert(0, str(project_root))
 
 from config.settings import Settings
 from utils.logger import setup_logger
-from ai_engine.deepseek_client import DeepSeekClient
+from ai_engine.puter_client import PuterAIClient
 from trading.exchange import ExchangeManager
 from trading.signals import SignalGenerator
 from trading.risk_manager import RiskManager
@@ -30,7 +30,10 @@ class BitcoinTradingBot:
     def __init__(self):
         """Khởi tạo bot"""
         self.settings = Settings()
-        self.deepseek = DeepSeekClient()
+        
+        # Chỉ sử dụng Puter AI - Miễn phí, không cần API key
+        self.ai_client = PuterAIClient()
+        
         self.exchange = ExchangeManager()
         self.signal_generator = SignalGenerator()
         self.risk_manager = RiskManager()
@@ -44,9 +47,10 @@ class BitcoinTradingBot:
         logger.info("🚀 Đang khởi tạo Bitcoin AI Trading Bot...")
         
         try:
-            # Test DeepSeek API connection
-            await self.deepseek.test_connection()
-            logger.info("✅ DeepSeek API kết nối thành công")
+            # Khởi tạo Puter AI - luôn sẵn sàng
+            logger.info("🎯 Khởi tạo Puter AI - Miễn phí, không cần API key")
+            await self.ai_client.test_connection()
+            logger.info("✅ Puter AI sẵn sàng")
             
             # Initialize exchange connection
             await self.exchange.initialize()
@@ -73,8 +77,8 @@ class BitcoinTradingBot:
             # 1. Thu thập dữ liệu market
             market_data = await self.data_collector.get_market_data()
             
-            # 2. Phân tích AI với DeepSeek
-            ai_analysis = await self.deepseek.analyze_market(market_data)
+            # 2. Phân tích AI với Puter AI
+            ai_analysis = await self.ai_client.analyze_market(market_data)
             
             # 3. Tạo signals từ technical analysis
             technical_signals = await self.signal_generator.generate_signals(market_data)

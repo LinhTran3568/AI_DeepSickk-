@@ -11,8 +11,7 @@ load_dotenv()
 class Settings:
     """Cài đặt cấu hình bot"""
     
-    # API Keys
-    DEEPSEEK_API_KEY = os.getenv('DEEPSEEK_API_KEY', '')
+    # API Keys - Chỉ dùng cho binance (không cần cho Puter AI)
     BINANCE_API_KEY = os.getenv('BINANCE_API_KEY', '')
     BINANCE_SECRET_KEY = os.getenv('BINANCE_SECRET_KEY', '')
     BINANCE_TESTNET = os.getenv('BINANCE_TESTNET', 'True').lower() == 'true'
@@ -53,18 +52,15 @@ class Settings:
     RSI_OVERSOLD = 30
     RSI_OVERBOUGHT = 70
     
-    # DeepSeek API Configuration (via OpenRouter)
-    DEEPSEEK_API_BASE = "https://openrouter.ai/api/v1"
-    DEEPSEEK_MODEL = "deepseek/deepseek-chat"
-    DEEPSEEK_MAX_TOKENS = 4000
+    # Puter AI Configuration - Miễn phí, không cần API key
+    PUTER_AI_ENABLED = True
     
     @classmethod
     def validate(cls):
         """Validate configuration"""
         errors = []
         
-        if not cls.DEEPSEEK_API_KEY:
-            errors.append("DEEPSEEK_API_KEY is required")
+        # Puter AI không cần API key - bỏ qua validation cho AI
         
         if cls.BOT_MODE == 'live' and not cls.BINANCE_API_KEY:
             errors.append("BINANCE_API_KEY is required for live trading")

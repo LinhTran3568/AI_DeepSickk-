@@ -235,6 +235,11 @@ JSON format:
                 "stream": False
             }
             
+            print(f"🔍 Debug - API Base URL: {self.base_url}")
+            print(f"🔍 Debug - Model: {self.model}")
+            print(f"🔍 Debug - API Key: {self.api_key[:10]}...{self.api_key[-4:]}")
+            print(f"🔍 Debug - Headers: {headers}")
+            
             async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=30)) as session:
                 async with session.post(
                     f"{self.base_url}/chat/completions",
@@ -242,11 +247,14 @@ JSON format:
                     json=payload
                 ) as response:
                     
+                    response_text = await response.text()
+                    print(f"🔍 Debug - Response Status: {response.status}")
+                    print(f"🔍 Debug - Response Text: {response_text[:200]}...")
+                    
                     if response.status == 200:
                         return await response.json()
                     else:
-                        error_text = await response.text()
-                        logger.error(f"❌ DeepSeek API error {response.status}: {error_text}")
+                        logger.error(f"❌ DeepSeek API error {response.status}: {response_text}")
                         return None
                         
         except Exception as e:
