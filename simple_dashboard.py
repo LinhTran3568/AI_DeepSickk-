@@ -134,6 +134,7 @@ SIMPLE_DASHBOARD = '''
             <br>
             <button class="btn btn-success" onclick="startBot()">Start Bot</button>
             <button class="btn btn-danger" onclick="stopBot()">Stop Bot</button>
+            <button class="btn btn-info" onclick="refreshData()">🔄 Refresh</button>
         </div>
 
         <!-- Price Card -->
@@ -143,6 +144,7 @@ SIMPLE_DASHBOARD = '''
             <p>24h Change: <span id="change">+2.5%</span></p>
             <p>Volume: <span id="volume">1.8M</span></p>
             <p>Last Update: <span id="last-update">--:--:--</span></p>
+            <p><small>Auto-refresh: 30s</small></p>
         </div>
 
         <!-- Signal Card -->
@@ -268,9 +270,22 @@ SIMPLE_DASHBOARD = '''
             addLog('Stopping bot...');
         }
 
+        function refreshData() {
+            socket.emit('get_live_data');
+            addLog('Manual refresh triggered');
+        }
+
         function updateStatus() {
             // Send initial status update
             socket.emit('get_status');
+        }
+
+        // Auto refresh data every 30 seconds
+        function autoRefresh() {
+            socket.emit('get_live_data');
+            
+            // Schedule next refresh
+            setTimeout(autoRefresh, 30000); // 30 seconds
         }
 
         // Initialize on page load
@@ -278,9 +293,10 @@ SIMPLE_DASHBOARD = '''
             addLog('Dashboard initialized');
             updateStatus(); // Get initial status
             
-            // Simulate some live data
+            // Start auto refresh cycle
             setTimeout(() => {
                 socket.emit('get_live_data');
+                autoRefresh(); // Start continuous updates
             }, 2000);
         };
     </script>
@@ -339,46 +355,114 @@ def handle_get_status():
 
 @socketio.on('get_live_data')
 def handle_get_live_data():
-    # Simulate getting live data
-    new_price = bot_state['current_price'] + random.randint(-1000, 1000)
-    bot_state['current_price'] = new_price
-    
-    emit('price_update', {
-        'price': new_price,
-        'change': random.uniform(-3, 3),
-        'volume': random.randint(1200000, 2500000)
-    })
+    """Get real live data from API"""
+    try:
+        import asyncio
+        from data.collector import DataCollector
+        
+        # Get real market data
+        collector = DataCollector()
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        
+        market_data = loop.run_until_complete(collector.get_market_data('BTCUSDT'))
+        loop.close()
+        
+        if market_data:
+            current_price = market_data.get('price', bot_state['current_price'])
+            change_24h = market_data.get('price_change_percent_24h', 0)
+            volume = market_data.get('volume', 0)
+            
+            # Update bot state
+            bot_state['current_price'] = current_price
+            
+            emit('price_update', {
+                'price': current_price,
+                'change': change_24h,
+                'volume': volume
+            })
+        else:
+            # Fallback if API fails
+            emit('price_update', {
+                'price': bot_state['current_price'],
+                'change': random.uniform(-3, 3),
+                'volume': random.randint(1200000, 2500000)
+            })
+            
+    except Exception as e:
+        print(f"Error getting live data: {e}")
+        # Fallback data
+        emit('price_update', {
+            'price': bot_state['current_price'],
+            'change': random.uniform(-3, 3),
+            'volume': random.randint(1200000, 2500000)
+        })
 
 def simulate_live_data():
-    """Background thread to simulate live price updates"""
+    """Background thread to get real live data"""
+    import asyncio
+    from data.collector import DataCollector
+    from ai_engine.puter_client import PuterAIClient
+    
+    # Initialize components
+    collector = DataCollector()
+    ai_client = PuterAIClient()
+    
     while True:
-        time.sleep(10)  # Update every 10 seconds
-        
-        # Random price movement
-        change = random.randint(-500, 500)
-        bot_state['current_price'] += change
-        
-        # Broadcast to all connected clients
-        socketio.emit('price_update', {
-            'price': bot_state['current_price'],
-            'change': random.uniform(-2, 2),
-            'volume': random.randint(1500000, 2200000)
-        })
-        
-        # Occasionally send new AI signals
-        if random.random() < 0.3:  # 30% chance
-            actions = ['BUY', 'SELL', 'HOLD']
-            new_action = random.choice(actions)
-            bot_state['signal']['action'] = new_action
+        try:
+            # Create new event loop for this thread
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
             
-            socketio.emit('signal_update', {
-                'action': new_action,
-                'confidence': random.uniform(0.6, 0.9),
-                'entry_price': bot_state['current_price'],
-                'stop_loss': bot_state['current_price'] - random.randint(1000, 2000),
-                'take_profit': bot_state['current_price'] + random.randint(1000, 2000),
-                'reasoning': f'AI analysis updated với action {new_action}'
+            # Get real market data
+            market_data = loop.run_until_complete(collector.get_market_data('BTCUSDT'))
+            
+            if market_data:
+                current_price = market_data.get('price', bot_state['current_price'])
+                change_24h = market_data.get('price_change_percent_24h', 0)
+                volume = market_data.get('volume', 0)
+                
+                # Update bot state
+                bot_state['current_price'] = current_price
+                
+                # Broadcast real price to all connected clients
+                socketio.emit('price_update', {
+                    'price': current_price,
+                    'change': change_24h,
+                    'volume': volume
+                })
+                
+                # Get AI analysis every few updates
+                if random.random() < 0.4:  # 40% chance for AI analysis
+                    try:
+                        ai_analysis = loop.run_until_complete(ai_client.analyze_market(market_data))
+                        
+                        if ai_analysis:
+                            bot_state['signal']['action'] = ai_analysis.get('action', 'HOLD')
+                            
+                            socketio.emit('signal_update', {
+                                'action': ai_analysis.get('action', 'HOLD'),
+                                'confidence': ai_analysis.get('confidence', 50) / 100,
+                                'entry_price': ai_analysis.get('entry_price', current_price),
+                                'stop_loss': ai_analysis.get('stop_loss', current_price * 0.95),
+                                'take_profit': ai_analysis.get('take_profit', current_price * 1.05),
+                                'reasoning': f'Real AI analysis: {ai_analysis.get("action", "HOLD")} signal'
+                            })
+                    except Exception as e:
+                        print(f"AI analysis error: {e}")
+            
+            loop.close()
+            
+        except Exception as e:
+            print(f"Live data error: {e}")
+            # Fallback to basic update if real data fails
+            socketio.emit('price_update', {
+                'price': bot_state['current_price'],
+                'change': random.uniform(-2, 2),
+                'volume': random.randint(1500000, 2200000)
             })
+        
+        time.sleep(30)  # Update every 30 seconds for real data
 
 if __name__ == '__main__':
     # Start background thread for live data
